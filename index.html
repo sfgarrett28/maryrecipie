@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Weekly Dinner Planner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700&family=Fredoka:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Family-Friendly • Under 30 Minutes • 4 Servings</p>
+          <h1>Weekly Dinner Planner</h1>
+          <p class="subhead">
+            Mix-and-match dinners with a kid-approved vibe, plus a tidy shopping list by store section.
+          </p>
+        </div>
+        <div class="hero-card">
+          <div class="hero-card__icon">🥘</div>
+          <div>
+            <p class="hero-card__title">This week at a glance</p>
+            <p class="hero-card__body">
+              Generate a fresh 7-night plan, swap meals, then save your favorites to reuse later.
+            </p>
+          </div>
+        </div>
+      </header>
+
+      <section class="controls">
+        <button id="generateBtn" class="btn primary">Generate New Week</button>
+        <button id="saveBtn" class="btn">Save Week</button>
+        <button id="downloadBtn" class="btn">Download Shopping List</button>
+        <label class="toggle">
+          <input id="complexToggle" type="checkbox" />
+          <span class="toggle__track" aria-hidden="true"></span>
+          <span class="toggle__label">Include complex meals</span>
+        </label>
+        <label class="select">
+          <span>Load Week</span>
+          <select id="historySelect">
+            <option value="">Choose saved week</option>
+          </select>
+        </label>
+      </section>
+
+      <main class="grid">
+        <section class="plan" aria-live="polite">
+          <div class="section-title">
+            <h2>7 Dinner Plan</h2>
+            <p>Swap any night to suit your crew.</p>
+          </div>
+          <div id="planList" class="plan-list"></div>
+        </section>
+
+        <section class="shopping">
+          <div class="section-title">
+            <h2>Shopping List</h2>
+            <p>Grouped by store section.</p>
+          </div>
+          <div id="shoppingList" class="shopping-list"></div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <p>Tip: Try a new plan each week and save the ones everyone loved.</p>
+      </footer>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
