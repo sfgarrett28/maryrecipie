@@ -899,11 +899,23 @@ const generateBtn = document.getElementById("generateBtn");
 const saveBtn = document.getElementById("saveBtn");
 const downloadBtn = document.getElementById("downloadBtn");
 const complexToggle = document.getElementById("complexToggle");
+const starredOnlyToggle = document.getElementById("starredOnlyToggle");
+const listStarredOnlyToggle = document.getElementById("listStarredOnlyToggle");
+const hideDislikedToggle = document.getElementById("hideDislikedToggle");
+const listComplexityFilter = document.getElementById("listComplexityFilter");
+const recipeUrlInput = document.getElementById("recipeUrlInput");
+const addRecipeBtn = document.getElementById("addRecipeBtn");
+const recipeAddStatus = document.getElementById("recipeAddStatus");
 
 const HISTORY_KEY = "mealPlannerHistory";
+const STARRED_KEY = "mealPlannerStarredIds";
+const DISLIKED_KEY = "mealPlannerDislikedIds";
+const CUSTOM_RECIPES_KEY = "mealPlannerCustomRecipes";
 const MAX_HISTORY = 8;
 
 let weeklyPlan = [];
+let starredRecipeIds = new Set();
+let dislikedRecipeIds = new Set();
 
 function shuffle(array) {
   const copy = [...array];
@@ -914,14 +926,135 @@ function shuffle(array) {
   return copy;
 }
 
+function slugToTitleCase(text) {
+  return text
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function parseRecipeUrl(rawUrl) {
+  const parsed = new URL(rawUrl);
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    throw new Error("Recipe URL must start with http:// or https://");
+  }
+  return parsed;
+}
+
+function deriveRecipeNameFromUrl(parsedUrl) {
+  const segments = parsedUrl.pathname.split("/").filter(Boolean);
+  if (segments.length > 0) {
+    const last = decodeURIComponent(segments[segments.length - 1]);
+    const title = slugToTitleCase(last);
+    if (title) return title;
+  }
+  return parsedUrl.hostname.replace(/^www\./, "");
+}
+
+function createCustomMealFromUrl(rawUrl) {
+  const parsed = parseRecipeUrl(rawUrl);
+  return {
+    id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: deriveRecipeNameFromUrl(parsed),
+    timeMinutes: 45,
+    servings: 4,
+    complexity: "complex",
+    categories: ["custom"],
+    recipeUrl: parsed.toString(),
+    ingredients: [],
+    isCustom: true,
+  };
+}
+
+function loadStarredIds() {
+  const raw = localStorage.getItem(STARRED_KEY);
+  if (!raw) return new Set();
+  try {
+    const values = JSON.parse(raw);
+    if (!Array.isArray(values)) return new Set();
+    return new Set(values);
+  } catch (error) {
+    return new Set();
+  }
+}
+
+function saveStarredIds() {
+  localStorage.setItem(STARRED_KEY, JSON.stringify(Array.from(starredRecipeIds)));
+}
+
+function loadDislikedIds() {
+  const raw = localStorage.getItem(DISLIKED_KEY);
+  if (!raw) return new Set();
+  try {
+    const values = JSON.parse(raw);
+    if (!Array.isArray(values)) return new Set();
+    return new Set(values);
+  } catch (error) {
+    return new Set();
+  }
+}
+
+function saveDislikedIds() {
+  localStorage.setItem(DISLIKED_KEY, JSON.stringify(Array.from(dislikedRecipeIds)));
+}
+
+function loadCustomRecipes() {
+  const raw = localStorage.getItem(CUSTOM_RECIPES_KEY);
+  if (!raw) return [];
+  try {
+    const items = JSON.parse(raw);
+    if (!Array.isArray(items)) return [];
+    return items;
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveCustomRecipes() {
+  const customMeals = meals.filter((meal) => meal.isCustom);
+  localStorage.setItem(CUSTOM_RECIPES_KEY, JSON.stringify(customMeals));
+}
+
+function setRecipeStatus(message) {
+  recipeAddStatus.textContent = message;
+}
+
+function getListFilteredMeals() {
+  const complexityFilter = listComplexityFilter ? listComplexityFilter.value : "all";
+  const starredOnly = listStarredOnlyToggle ? listStarredOnlyToggle.checked : false;
+  const hideDisliked = hideDislikedToggle ? hideDislikedToggle.checked : true;
+  let filtered = hideDisliked ? meals.filter((meal) => !dislikedRecipeIds.has(meal.id)) : [...meals];
+  if (complexityFilter !== "all") {
+    filtered = filtered.filter((meal) => meal.complexity === complexityFilter);
+  }
+  if (starredOnly) {
+    filtered = filtered.filter((meal) => starredRecipeIds.has(meal.id));
+  }
+  return filtered;
+}
+
 function generateWeek() {
-  const includeComplex = complexToggle ? complexToggle.checked : false;
-  const pool = includeComplex
-    ? meals
-    : meals.filter((meal) => meal.complexity === "quick");
+  const starredOnly = starredOnlyToggle ? starredOnlyToggle.checked : false;
+  const nonDislikedMeals = meals.filter((meal) => !dislikedRecipeIds.has(meal.id));
+  const pool = starredOnly
+    ? nonDislikedMeals.filter((meal) => starredRecipeIds.has(meal.id))
+    : nonDislikedMeals;
+  if (starredOnly && pool.length === 0) {
+    setRecipeStatus("No starred recipes yet. Star meals first, then generate.");
+    return;
+  }
+  if (!starredOnly && pool.length === 0) {
+    setRecipeStatus("No recipes available. Remove a dislike or add a new recipe URL.");
+    return;
+  }
   const selectionPool = pool.length ? pool : meals;
   const shuffled = shuffle(selectionPool);
   weeklyPlan = shuffled.slice(0, 7).map((meal) => meal.id);
+  setRecipeStatus("");
   render();
 }
 
@@ -937,12 +1070,16 @@ function render() {
 function renderPlan() {
   planList.innerHTML = "";
   weeklyPlan.forEach((mealId, index) => {
-    const meal = getMealById(mealId);
+    const meal = getMealById(mealId) || meals[0];
+    if (!meal) return;
     const card = document.createElement("article");
     card.className = "plan-card";
 
     const header = document.createElement("div");
     header.className = "plan-header";
+
+    const left = document.createElement("div");
+    left.className = "plan-header__left";
 
     const day = document.createElement("div");
     day.className = "plan-day";
@@ -952,7 +1089,54 @@ function renderPlan() {
     meta.className = "plan-meta";
     meta.textContent = `${meal.timeMinutes} min • ${meal.servings} servings`;
 
-    header.append(day, meta);
+    left.append(day, meta);
+
+    const starButton = document.createElement("button");
+    starButton.type = "button";
+    starButton.className = "star-btn";
+    if (starredRecipeIds.has(meal.id)) {
+      starButton.classList.add("is-starred");
+      starButton.textContent = "★ Starred";
+    } else {
+      starButton.textContent = "☆ Star";
+    }
+    starButton.addEventListener("click", () => {
+      if (starredRecipeIds.has(meal.id)) {
+        starredRecipeIds.delete(meal.id);
+      } else {
+        starredRecipeIds.add(meal.id);
+        dislikedRecipeIds.delete(meal.id);
+      }
+      saveStarredIds();
+      saveDislikedIds();
+      renderPlan();
+    });
+
+    const dislikeButton = document.createElement("button");
+    dislikeButton.type = "button";
+    dislikeButton.className = "dislike-btn";
+    if (dislikedRecipeIds.has(meal.id)) {
+      dislikeButton.classList.add("is-disliked");
+      dislikeButton.textContent = "👎 Disliked";
+    } else {
+      dislikeButton.textContent = "👎 Dislike";
+    }
+    dislikeButton.addEventListener("click", () => {
+      if (dislikedRecipeIds.has(meal.id)) {
+        dislikedRecipeIds.delete(meal.id);
+      } else {
+        dislikedRecipeIds.add(meal.id);
+        starredRecipeIds.delete(meal.id);
+      }
+      saveDislikedIds();
+      saveStarredIds();
+      renderPlan();
+    });
+
+    const actions = document.createElement("div");
+    actions.className = "plan-actions";
+    actions.append(starButton, dislikeButton);
+    header.append(left, actions);
 
     const mealName = document.createElement("p");
     mealName.className = "plan-meal";
@@ -981,18 +1165,32 @@ function renderPlan() {
 
     const select = document.createElement("select");
     select.className = "meal-select";
-    meals.forEach((optionMeal) => {
+    const filteredOptions = getListFilteredMeals();
+    const hasCurrentMealInFilter = filteredOptions.some((item) => item.id === mealId);
+
+    if (!hasCurrentMealInFilter && meal) {
+      const selectedOption = document.createElement("option");
+      selectedOption.value = meal.id;
+      selectedOption.textContent = `${meal.name} (outside list filter)`;
+      selectedOption.selected = true;
+      select.appendChild(selectedOption);
+    }
+
+    filteredOptions.forEach((optionMeal) => {
       const option = document.createElement("option");
       option.value = optionMeal.id;
       const complexityLabel = optionMeal.complexity === "complex" ? "Complex" : "Quick";
-      option.textContent = `${optionMeal.name} (${complexityLabel})`;
+      let iconPrefix = "";
+      if (starredRecipeIds.has(optionMeal.id)) iconPrefix = "★ ";
+      if (dislikedRecipeIds.has(optionMeal.id)) iconPrefix = "👎 ";
+      option.textContent = `${iconPrefix}${optionMeal.name} (${complexityLabel})`;
       if (optionMeal.id === mealId) option.selected = true;
       select.appendChild(option);
     });
 
     select.addEventListener("change", (event) => {
       weeklyPlan[index] = event.target.value;
-      renderShoppingList();
+      render();
     });
 
     card.append(header, mealName, recipeLink, tags, select);
@@ -1005,6 +1203,7 @@ function aggregateIngredients() {
 
   weeklyPlan.forEach((mealId) => {
     const meal = getMealById(mealId);
+    if (!meal) return;
     meal.ingredients.forEach((ingredient) => {
       const key = `${ingredient.section}|${ingredient.name.toLowerCase()}|${ingredient.unit}`;
       const current = totals.get(key) || { ...ingredient };
@@ -1122,6 +1321,35 @@ function loadWeekById(id) {
   render();
 }
 
+function addRecipeFromUrl() {
+  const raw = recipeUrlInput.value.trim();
+  if (!raw) {
+    setRecipeStatus("Enter a recipe URL first.");
+    return;
+  }
+
+  let parsed;
+  try {
+    parsed = parseRecipeUrl(raw);
+  } catch (error) {
+    setRecipeStatus(error.message);
+    return;
+  }
+
+  const duplicate = meals.find((meal) => meal.recipeUrl === parsed.toString());
+  if (duplicate) {
+    setRecipeStatus("Recipe URL already exists in your list.");
+    return;
+  }
+
+  const customMeal = createCustomMealFromUrl(parsed.toString());
+  meals.push(customMeal);
+  saveCustomRecipes();
+  setRecipeStatus(`Added "${customMeal.name}" to available recipes.`);
+  recipeUrlInput.value = "";
+  renderPlan();
+}
+
 historySelect.addEventListener("change", (event) => {
   if (!event.target.value) return;
   loadWeekById(event.target.value);
@@ -1134,6 +1362,51 @@ generateBtn.addEventListener("click", () => {
 saveBtn.addEventListener("click", () => {
   saveCurrentWeek();
 });
+
+if (complexToggle) {
+  complexToggle.addEventListener("change", () => {
+    setRecipeStatus("");
+  });
+}
+
+if (starredOnlyToggle) {
+  starredOnlyToggle.addEventListener("change", () => {
+    setRecipeStatus("");
+  });
+}
+
+if (listStarredOnlyToggle) {
+  listStarredOnlyToggle.addEventListener("change", () => {
+    renderPlan();
+  });
+}
+
+if (listComplexityFilter) {
+  listComplexityFilter.addEventListener("change", () => {
+    renderPlan();
+  });
+}
+
+if (hideDislikedToggle) {
+  hideDislikedToggle.addEventListener("change", () => {
+    renderPlan();
+  });
+}
+
+if (addRecipeBtn) {
+  addRecipeBtn.addEventListener("click", () => {
+    addRecipeFromUrl();
+  });
+}
+
+if (recipeUrlInput) {
+  recipeUrlInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addRecipeFromUrl();
+    }
+  });
+}
 
 downloadBtn.addEventListener("click", () => {
   const grouped = aggregateIngredients();
@@ -1164,6 +1437,13 @@ downloadBtn.addEventListener("click", () => {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+});
+
+starredRecipeIds = loadStarredIds();
+dislikedRecipeIds = loadDislikedIds();
+const customRecipes = loadCustomRecipes();
+customRecipes.forEach((meal) => {
+  meals.push({ ...meal, isCustom: true, ingredients: Array.isArray(meal.ingredients) ? meal.ingredients : [] });
 });
 
 refreshHistorySelect();

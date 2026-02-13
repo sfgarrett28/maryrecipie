@@ -38,9 +38,32 @@
         <button id="saveBtn" class="btn">Save Week</button>
         <button id="downloadBtn" class="btn">Download Shopping List</button>
         <label class="toggle">
+          <input id="starredOnlyToggle" type="checkbox" />
+          <span class="toggle__track" aria-hidden="true"></span>
+          <span class="toggle__label">Starred only</span>
+        </label>
+        <label class="toggle">
+          <input id="listStarredOnlyToggle" type="checkbox" />
+          <span class="toggle__track" aria-hidden="true"></span>
+          <span class="toggle__label">List: Starred only</span>
+        </label>
+        <label class="toggle">
+          <input id="hideDislikedToggle" type="checkbox" checked />
+          <span class="toggle__track" aria-hidden="true"></span>
+          <span class="toggle__label">Hide disliked</span>
+        </label>
+        <label class="toggle">
           <input id="complexToggle" type="checkbox" />
           <span class="toggle__track" aria-hidden="true"></span>
           <span class="toggle__label">Include complex meals</span>
+        </label>
+        <label class="select">
+          <span>List Filter</span>
+          <select id="listComplexityFilter">
+            <option value="all">All</option>
+            <option value="quick">Quick</option>
+            <option value="complex">Complex</option>
+          </select>
         </label>
         <label class="select">
           <span>Load Week</span>
@@ -48,6 +71,20 @@
             <option value="">Choose saved week</option>
           </select>
         </label>
+      </section>
+      <section class="recipe-adder">
+        <label class="recipe-adder__label" for="recipeUrlInput">Add recipe by URL</label>
+        <div class="recipe-adder__row">
+          <input
+            id="recipeUrlInput"
+            class="recipe-adder__input"
+            type="url"
+            placeholder="https://example.com/recipe"
+            aria-label="Recipe URL"
+          />
+          <button id="addRecipeBtn" class="btn">Add Recipe</button>
+        </div>
+        <p id="recipeAddStatus" class="recipe-adder__status" aria-live="polite"></p>
       </section>
 
       <main class="grid">
