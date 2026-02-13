@@ -206,6 +206,10 @@ h1 {
   flex-wrap: wrap;
 }
 
+.recipe-adder__actions {
+  margin-top: 10px;
+}
+
 .recipe-adder__input {
   min-width: 280px;
   flex: 1;

@@ -898,6 +898,7 @@ const historySelect = document.getElementById("historySelect");
 const generateBtn = document.getElementById("generateBtn");
 const saveBtn = document.getElementById("saveBtn");
 const downloadBtn = document.getElementById("downloadBtn");
+const saveLibraryBtn = document.getElementById("saveLibraryBtn");
 const complexToggle = document.getElementById("complexToggle");
 const starredOnlyToggle = document.getElementById("starredOnlyToggle");
 const listStarredOnlyToggle = document.getElementById("listStarredOnlyToggle");
@@ -911,6 +912,7 @@ const HISTORY_KEY = "mealPlannerHistory";
 const STARRED_KEY = "mealPlannerStarredIds";
 const DISLIKED_KEY = "mealPlannerDislikedIds";
 const CUSTOM_RECIPES_KEY = "mealPlannerCustomRecipes";
+const USER_LIBRARY_KEY = "mealPlannerUserLibrary";
 const MAX_HISTORY = 8;
 
 let weeklyPlan = [];
@@ -1000,6 +1002,39 @@ function loadDislikedIds() {
 
 function saveDislikedIds() {
   localStorage.setItem(DISLIKED_KEY, JSON.stringify(Array.from(dislikedRecipeIds)));
+}
+
+function loadUserLibrary() {
+  const raw = localStorage.getItem(USER_LIBRARY_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch (error) {
+    return null;
+  }
+}
+
+function saveUserLibrary() {
+  const mealState = {};
+  meals.forEach((meal) => {
+    mealState[meal.id] = {
+      starred: starredRecipeIds.has(meal.id),
+      disliked: dislikedRecipeIds.has(meal.id),
+    };
+  });
+  const payload = {
+    customRecipes: meals.filter((meal) => meal.isCustom),
+    mealState,
+    savedWeeks: loadHistory(),
+    savedAt: new Date().toISOString(),
+  };
+  localStorage.setItem(USER_LIBRARY_KEY, JSON.stringify(payload));
+  saveCustomRecipes();
+  saveStarredIds();
+  saveDislikedIds();
+  setRecipeStatus("Library saved: recipes and meal likes/dislikes were stored for this user.");
 }
 
 function loadCustomRecipes() {
@@ -1269,7 +1304,13 @@ function renderShoppingList() {
 
 function loadHistory() {
   const raw = localStorage.getItem(HISTORY_KEY);
-  if (!raw) return [];
+  if (!raw) {
+    const library = loadUserLibrary();
+    if (library && Array.isArray(library.savedWeeks)) {
+      return library.savedWeeks;
+    }
+    return [];
+  }
   try {
     return JSON.parse(raw);
   } catch (error) {
@@ -1399,6 +1440,12 @@ if (addRecipeBtn) {
   });
 }
 
+if (saveLibraryBtn) {
+  saveLibraryBtn.addEventListener("click", () => {
+    saveUserLibrary();
+  });
+}
+
 if (recipeUrlInput) {
   recipeUrlInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
@@ -1439,12 +1486,29 @@ downloadBtn.addEventListener("click", () => {
   URL.revokeObjectURL(url);
 });
 
-starredRecipeIds = loadStarredIds();
-dislikedRecipeIds = loadDislikedIds();
-const customRecipes = loadCustomRecipes();
+const savedLibrary = loadUserLibrary();
+const customRecipes = savedLibrary && Array.isArray(savedLibrary.customRecipes)
+  ? savedLibrary.customRecipes
+  : loadCustomRecipes();
 customRecipes.forEach((meal) => {
   meals.push({ ...meal, isCustom: true, ingredients: Array.isArray(meal.ingredients) ? meal.ingredients : [] });
 });
+if (savedLibrary && savedLibrary.mealState && typeof savedLibrary.mealState === "object") {
+  Object.entries(savedLibrary.mealState).forEach(([mealId, state]) => {
+    if (state && state.starred) starredRecipeIds.add(mealId);
+    if (state && state.disliked) dislikedRecipeIds.add(mealId);
+  });
+  dislikedRecipeIds.forEach((mealId) => {
+    if (starredRecipeIds.has(mealId)) starredRecipeIds.delete(mealId);
+  });
+} else {
+  starredRecipeIds = loadStarredIds();
+  dislikedRecipeIds = loadDislikedIds();
+}
+
+if (savedLibrary && Array.isArray(savedLibrary.savedWeeks)) {
+  saveHistory(savedLibrary.savedWeeks.slice(0, MAX_HISTORY));
+}
 
 refreshHistorySelect();
 if (weeklyPlan.length === 0) {
